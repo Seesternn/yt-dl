@@ -120,7 +120,7 @@ brew install ffmpeg
 
 That's it. The app will find ffmpeg automatically — no extra steps needed.
 
-> **Apple Silicon (M1/M2/M3):** Homebrew installs to `/opt/homebrew/bin/ffmpeg`.
+> **Apple Silicon (M1/M2/M3/M4/M5):** Homebrew installs to `/opt/homebrew/bin/ffmpeg`.
 > **Intel Mac:** Homebrew installs to `/usr/local/bin/ffmpeg`.
 > Both paths are detected automatically.
 
