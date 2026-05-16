@@ -25,7 +25,13 @@ import yt_dlp
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 # ─────────────────────────────────────────────
-#  PyInstaller / MEIPASS YARDIMCI FONKSİYONLARI
+
+# ─────────────────────────────────────────────
+IS_WINDOWS = sys.platform == "win32"
+IS_MAC     = sys.platform == "darwin"
+IS_LINUX   = sys.platform.startswith("linux")
+
+
 # ─────────────────────────────────────────────
 def get_base_dir():
     if getattr(sys, 'frozen', False):
@@ -40,59 +46,123 @@ def get_resource_path(relative_path):
 
 def get_ffmpeg_path():
     """
-    ffmpeg yolunu bulur ve doğrular.
+    ffmpeg yolunu bulur ve doğrular. Platform bağımsız çalışır.
+
     Arama sırası:
     1. _MEIPASS içinde (PyInstaller paketi)
     2. exe/script yanındaki 'ffmpeg' alt klasörü
-    3. exe/script yanındaki 'ffmpeg/bin' alt klasörü (resmi zip yapısı)
-    4. exe/script'in doğrudan yanında
-    5. Sistem PATH'inde (shutil.which ile doğrulayarak)
-    Bulunamazsa None döner — caller hata mesajı gösterir.
+    3. exe/script yanındaki 'ffmpeg/bin' alt klasörü (Windows resmi zip yapısı)
+    4. macOS Homebrew konumları (/opt/homebrew/bin, /usr/local/bin)
+    5. exe/script'in doğrudan yanında
+    6. Sistem PATH'inde (shutil.which ile doğrulayarak)
+    Bulunamazsa None döner.
     """
-    ffmpeg_exe = "ffmpeg.exe" if sys.platform == "win32" else "ffmpeg"
+    ffmpeg_exe = "ffmpeg.exe" if IS_WINDOWS else "ffmpeg"
 
-    # 1. _MEIPASS (PyInstaller paketi içinde)
     if hasattr(sys, '_MEIPASS'):
         candidate = os.path.join(sys._MEIPASS, ffmpeg_exe)
         if os.path.isfile(candidate):
             return candidate
 
-    # Temel dizin: frozen ise exe'nin yanı, değilse script'in yanı
     base = os.path.dirname(sys.executable) if getattr(sys, 'frozen', False) \
            else os.path.dirname(os.path.abspath(__file__))
 
-    # 2. /ffmpeg/ alt klasörü
     candidate = os.path.join(base, "ffmpeg", ffmpeg_exe)
     if os.path.isfile(candidate):
         return candidate
 
-    # 3. /ffmpeg/bin/ alt klasörü (resmi zip yapısı: ffmpeg-xxx/bin/ffmpeg.exe)
     candidate = os.path.join(base, "ffmpeg", "bin", ffmpeg_exe)
     if os.path.isfile(candidate):
         return candidate
 
-    # 4. Doğrudan exe/script'in yanında
+    if IS_MAC:
+        for brew_path in [
+            "/opt/homebrew/bin/ffmpeg",   # Apple Silicon
+            "/usr/local/bin/ffmpeg",       # Intel Mac
+            "/opt/local/bin/ffmpeg",       # MacPorts
+        ]:
+            if os.path.isfile(brew_path):
+                return brew_path
+
     candidate = os.path.join(base, ffmpeg_exe)
     if os.path.isfile(candidate):
         return candidate
 
-    # 5. Sistem PATH'inde gerçekten var mı?
     which_result = shutil.which("ffmpeg")
     if which_result:
         return which_result
 
-    # Bulunamadı
     return None
 
-# Uygulama genelinde kullanılacak sabit yollar
+# ─────────────────────────────────────────────
+#  ffmpeg download
+# ─────────────────────────────────────────────
+def get_ffmpeg_install_guide():
+    if IS_WINDOWS:
+        return (
+            "ffmpeg bulunamadı!\n\n"
+            "Lütfen ffmpeg.exe dosyasını indirip uygulamanın yanına koyun.\n"
+            "İndirme: https://www.gyan.dev/ffmpeg/builds/\n\n"
+            "'ffmpeg-release-essentials.zip' dosyasını indirip içindeki\n"
+            "ffmpeg.exe dosyasını bu uygulamanın yanına kopyalayın."
+        )
+    elif IS_MAC:
+        return (
+            "ffmpeg bulunamadı!\n\n"
+            "Homebrew ile kolayca kurabilirsiniz:\n"
+            "  brew install ffmpeg\n\n"
+            "Homebrew kurulu değilse önce:\n"
+            "  /bin/bash -c \"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\"\n\n"
+            "Ya da resmi site: https://ffmpeg.org/download.html"
+        )
+    else:
+        return (
+            "ffmpeg bulunamadı!\n\n"
+            "Paket yöneticinizle kurabilirsiniz:\n"
+            "  Ubuntu/Debian: sudo apt install ffmpeg\n"
+            "  Fedora:        sudo dnf install ffmpeg\n"
+            "  Arch:          sudo pacman -S ffmpeg\n\n"
+            "Resmi site: https://ffmpeg.org/download.html"
+        )
+
 BASE_DIR    = get_base_dir()
 CONFIG_FILE = os.path.join(BASE_DIR, "settings.json")
 DB_FILE     = os.path.join(BASE_DIR, "history.db")
 FFMPEG_PATH = get_ffmpeg_path()
 
 # ─────────────────────────────────────────────
-#  DİL SÖZLÜĞÜ
+
 # ─────────────────────────────────────────────
+_ffmpeg_guide_tr = get_ffmpeg_install_guide()
+_ffmpeg_guide_en_win = (
+    "ffmpeg not found!\n\n"
+    "Please download ffmpeg.exe and place it next to this application.\n"
+    "Download: https://www.gyan.dev/ffmpeg/builds/\n\n"
+    "Download 'ffmpeg-release-essentials.zip', extract it and copy\n"
+    "ffmpeg.exe next to this application."
+)
+_ffmpeg_guide_en_mac = (
+    "ffmpeg not found!\n\n"
+    "Install it easily with Homebrew:\n"
+    "  brew install ffmpeg\n\n"
+    "If Homebrew is not installed:\n"
+    "  /bin/bash -c \"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\"\n\n"
+    "Or visit: https://ffmpeg.org/download.html"
+)
+_ffmpeg_guide_en_linux = (
+    "ffmpeg not found!\n\n"
+    "Install via your package manager:\n"
+    "  Ubuntu/Debian: sudo apt install ffmpeg\n"
+    "  Fedora:        sudo dnf install ffmpeg\n"
+    "  Arch:          sudo pacman -S ffmpeg\n\n"
+    "Official site: https://ffmpeg.org/download.html"
+)
+
+def _ffmpeg_msg_en():
+    if IS_WINDOWS: return _ffmpeg_guide_en_win
+    if IS_MAC:     return _ffmpeg_guide_en_mac
+    return _ffmpeg_guide_en_linux
+
 LANG = {
     "TR": {
         "menu_single": "⊞  İndirici",
@@ -172,13 +242,9 @@ LANG = {
         "notify_done_title": "İndirme Tamamlandı",
         "notify_done_msg": "Video başarıyla indirildi.",
         "drop_hint": "↓ Linki buraya sürükleyin",
-        "msg_ffmpeg_missing": (
-            "ffmpeg bulunamadı!\n\n"
-            "Lütfen ffmpeg.exe dosyasını indirip uygulamanın yanına koyun.\n"
-            "İndirme: https://www.gyan.dev/ffmpeg/builds/\n\n"
-            "'ffmpeg-release-essentials.zip' dosyasını indirip içindeki\n"
-            "ffmpeg.exe dosyasını bu uygulamanın yanına kopyalayın."
-        ),
+        "tray_running": "Sistem tepsisinde çalışıyor.",
+        "tray_show_quit": "Göster / Çıkış",
+        "msg_ffmpeg_missing": _ffmpeg_guide_tr,
     },
     "EN": {
         "menu_single": "⊞  Downloader",
@@ -258,18 +324,14 @@ LANG = {
         "notify_done_title": "Download Complete",
         "notify_done_msg": "Video downloaded successfully.",
         "drop_hint": "↓ Drop link here",
-        "msg_ffmpeg_missing": (
-            "ffmpeg not found!\n\n"
-            "Please download ffmpeg.exe and place it next to this application.\n"
-            "Download: https://www.gyan.dev/ffmpeg/builds/\n\n"
-            "Download 'ffmpeg-release-essentials.zip', extract it and copy\n"
-            "ffmpeg.exe next to this application."
-        ),
+        "tray_running": "Running in system tray.",
+        "tray_show_quit": "Show / Quit",
+        "msg_ffmpeg_missing": _ffmpeg_msg_en(),
     }
 }
 
 # ─────────────────────────────────────────────
-#  AYARLAR
+#  SETTİNGS
 # ─────────────────────────────────────────────
 DEFAULT_CONFIG = {
     "language": "TR",
@@ -299,7 +361,7 @@ def save_config(config):
         print(f"[WARN] Ayarlar kaydedilemedi: {e}")
 
 # ─────────────────────────────────────────────
-#  GEÇMİŞ VERİTABANI
+#  DB
 # ─────────────────────────────────────────────
 def init_db():
     conn = sqlite3.connect(DB_FILE)
@@ -333,7 +395,30 @@ def clear_history():
     conn.commit(); conn.close()
 
 # ─────────────────────────────────────────────
-#  YARDIMCI: FADE ANİMASYONU
+
+# ─────────────────────────────────────────────
+def open_folder_platform(path):
+    """Klasörü platformun varsayılan dosya yöneticisiyle açar."""
+    if not os.path.exists(path):
+        return
+    if IS_WINDOWS:
+        os.startfile(path)
+    elif IS_MAC:
+        subprocess.run(["open", path], check=False)
+    else:
+        subprocess.run(["xdg-open", path], check=False)
+
+# ─────────────────────────────────────────────
+#  pip upgrade
+# ─────────────────────────────────────────────
+def get_pip_upgrade_cmd():
+    """yt-dlp'yi güncellemek için platforma uygun komut listesi döner."""
+    if getattr(sys, 'frozen', False):
+        return [sys.executable, "-m", "yt_dlp", "--update"]
+    return [sys.executable, "-m", "pip", "install", "--upgrade", "yt-dlp", "--quiet"]
+
+# ─────────────────────────────────────────────
+#  FADE
 # ─────────────────────────────────────────────
 class FadeStackedWidget(QStackedWidget):
     def __init__(self, parent=None):
@@ -354,7 +439,7 @@ class FadeStackedWidget(QStackedWidget):
         QTimer.singleShot(50, lambda: self.setStyleSheet(""))
 
 # ─────────────────────────────────────────────
-#  WORKER: BİLGİ GETİRME
+#  WORKER
 # ─────────────────────────────────────────────
 class InfoWorker(QThread):
     finished = pyqtSignal(dict, bytes)
@@ -378,7 +463,7 @@ class InfoWorker(QThread):
             self.error.emit(str(e))
 
 # ─────────────────────────────────────────────
-#  WORKER: PLAYLIST GETİRME
+#  WORKER: PLAYLIST
 # ─────────────────────────────────────────────
 class PlaylistWorker(QThread):
     finished = pyqtSignal(list)
@@ -408,7 +493,7 @@ class PlaylistWorker(QThread):
             self.error.emit(str(e))
 
 # ─────────────────────────────────────────────
-#  WORKER: İNDİRME
+#  WORKER: DOWNLOAD
 # ─────────────────────────────────────────────
 class DownloadWorker(QThread):
     progress = pyqtSignal(int, str, str)
@@ -443,13 +528,8 @@ class DownloadWorker(QThread):
             except: pass
 
     def _build_opts(self, task):
-        # ── ffmpeg kontrolü ──────────────────────────────
         if not FFMPEG_PATH:
-            raise FileNotFoundError(self.t.get(
-                "msg_ffmpeg_missing",
-                "ffmpeg not found! Please place ffmpeg.exe next to the application.\n"
-                "Download: https://www.gyan.dev/ffmpeg/builds/"
-            ))
+            raise FileNotFoundError(self.t.get("msg_ffmpeg_missing", "ffmpeg not found!"))
 
         fmt = task.get("format", self.config["default_format"])
         fmt_type = 'MP3' if 'MP3' in fmt.upper() else 'MP4'
@@ -463,10 +543,9 @@ class DownloadWorker(QThread):
             'progress_hooks': [self.progress_hook],
             'quiet': True,
             'noplaylist': True,
-            'ffmpeg_location': FFMPEG_PATH,
+            'ffmpeg_location': os.path.dirname(FFMPEG_PATH),  # yt-dlp klasör ister
         }
 
-        # Trim
         if self.trim_start or self.trim_end:
             ss = self.trim_start or "0"
             to = self.trim_end or "9999:00"
@@ -484,27 +563,15 @@ class DownloadWorker(QThread):
                 opts['writethumbnail'] = True
                 opts['convert_thumbnails'] = 'jpg'
                 opts['postprocessors'] = [
-                    {
-                        'key': 'FFmpegExtractAudio',
-                        'preferredcodec': 'mp3',
-                        'preferredquality': qual.replace('k', ''),
-                    },
-                    {
-                        'key': 'FFmpegMetadata',
-                        'add_metadata': True,
-                    },
-                    {
-                        'key': 'EmbedThumbnail',
-                        'already_have_thumbnail': False,
-                    },
+                    {'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3',
+                     'preferredquality': qual.replace('k', '')},
+                    {'key': 'FFmpegMetadata', 'add_metadata': True},
+                    {'key': 'EmbedThumbnail', 'already_have_thumbnail': False},
                 ]
             else:
                 opts['postprocessors'] = [
-                    {
-                        'key': 'FFmpegExtractAudio',
-                        'preferredcodec': 'mp3',
-                        'preferredquality': qual.replace('k', ''),
-                    },
+                    {'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3',
+                     'preferredquality': qual.replace('k', '')},
                 ]
         else:
             h = qual.replace('p', '')
@@ -552,7 +619,7 @@ class DownloadWorker(QThread):
             self.error.emit(str(e))
 
 # ─────────────────────────────────────────────
-#  WORKER: yt-dlp GÜNCELLEME
+#  WORKER: yt-dlp
 # ─────────────────────────────────────────────
 class UpdateWorker(QThread):
     result = pyqtSignal(str)
@@ -573,17 +640,11 @@ class UpdateWorker(QThread):
             if latest <= current:
                 self.result.emit("latest")
             elif self.do_update:
-                if getattr(sys, 'frozen', False):
-                    subprocess.run(
-                        [sys.executable, "-m", "yt_dlp", "--update"],
-                        check=True,
-                        creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
-                    )
-                else:
-                    subprocess.run(
-                        [sys.executable, "-m", "pip", "install", "--upgrade", "yt-dlp", "--quiet"],
-                        check=True
-                    )
+                cmd = get_pip_upgrade_cmd()
+                kwargs = {}
+                if IS_WINDOWS:
+                    kwargs['creationflags'] = subprocess.CREATE_NO_WINDOW
+                subprocess.run(cmd, check=True, **kwargs)
                 self.result.emit("done")
             else:
                 self.result.emit("available")
@@ -591,7 +652,6 @@ class UpdateWorker(QThread):
             self.result.emit(f"error:{e}")
 
 # ─────────────────────────────────────────────
-#  ANA UYGULAMA
 # ─────────────────────────────────────────────
 GRADIENT_BTN_QSS = """
 QPushButton.primaryBtn {
@@ -630,11 +690,11 @@ class MainApp(QWidget):
         self.lang = self.config.get("language", "TR")
         self.batch_tasks = []
         self.playlist_items = []
+        self._tray_available = False
         init_db()
         self.initUI()
         self.update_texts()
         self.setup_tray()
-        # ffmpeg uyarısını başlangıçta göster
         if not FFMPEG_PATH:
             QTimer.singleShot(500, self.warn_ffmpeg_missing)
         QTimer.singleShot(2000, self.auto_check_update)
@@ -645,6 +705,10 @@ class MainApp(QWidget):
 
     # ── TRAY ──────────────────────────────────
     def setup_tray(self):
+        if not QSystemTrayIcon.isSystemTrayAvailable():
+            self._tray_available = False
+            return
+
         self.tray = QSystemTrayIcon(self)
         size = 64
         pix = QPixmap(size, size)
@@ -663,6 +727,7 @@ class MainApp(QWidget):
         painter.drawText(pix.rect(), Qt.AlignCenter, "▶")
         painter.end()
         self.tray.setIcon(QIcon(pix))
+
         menu = QMenu()
         show_act = QAction("Göster / Show", self)
         show_act.triggered.connect(self.showNormal)
@@ -671,13 +736,24 @@ class MainApp(QWidget):
         menu.addAction(show_act)
         menu.addAction(quit_act)
         self.tray.setContextMenu(menu)
-        self.tray.activated.connect(lambda r: self.showNormal() if r == QSystemTrayIcon.DoubleClick else None)
+        self.tray.activated.connect(
+            lambda r: self.showNormal() if r == QSystemTrayIcon.DoubleClick else None)
         self.tray.show()
+        self._tray_available = True
+
+    def _tray_notify(self, title, message):
+        """Tray bildirimi gönderir; tray yoksa sessizce atlar."""
+        if self._tray_available and hasattr(self, 'tray'):
+            self.tray.showMessage(title, message, QSystemTrayIcon.Information, 4000)
 
     def closeEvent(self, event):
-        event.ignore()
-        self.hide()
-        self.tray.showMessage("YT Downloader", "Sistem tepsisinde çalışıyor.", QSystemTrayIcon.Information, 2000)
+        if self._tray_available:
+            event.ignore()
+            self.hide()
+            t = LANG[self.lang]
+            self._tray_notify("YT Downloader", t["tray_running"])
+        else:
+            event.accept()
 
     # ── AUTO UPDATE ───────────────────────────
     def auto_check_update(self):
@@ -692,10 +768,12 @@ class MainApp(QWidget):
                                          QMessageBox.Yes | QMessageBox.No)
             if reply == QMessageBox.Yes:
                 self.upd_worker2 = UpdateWorker(do_update=True)
-                self.upd_worker2.result.connect(lambda r: QMessageBox.information(self,"yt-dlp", t["update_done"] if r=="done" else r))
+                self.upd_worker2.result.connect(
+                    lambda r: QMessageBox.information(self, "yt-dlp",
+                                                      t["update_done"] if r == "done" else r))
                 self.upd_worker2.start()
 
-    # ── UI KURULUM ────────────────────────────
+    # ── UI ────────────────────────────
     def initUI(self):
         self.setWindowFlags(Qt.FramelessWindowHint)
         self.setAttribute(Qt.WA_TranslucentBackground)
@@ -825,12 +903,12 @@ class MainApp(QWidget):
 
         sb_layout.addStretch()
 
-        # ffmpeg durum göstergesi sidebar'da
         self.lbl_ffmpeg_status = QLabel("")
         self.lbl_ffmpeg_status.setContentsMargins(20, 0, 0, 0)
         self.lbl_ffmpeg_status.setWordWrap(True)
         if FFMPEG_PATH:
-            self.lbl_ffmpeg_status.setText("✔ ffmpeg")
+            short = os.path.basename(os.path.dirname(FFMPEG_PATH)) or "system"
+            self.lbl_ffmpeg_status.setText(f"✔ ffmpeg ({short})")
             self.lbl_ffmpeg_status.setStyleSheet("color:#4ADE80;font-size:11px;font-weight:600;")
         else:
             self.lbl_ffmpeg_status.setText("✘ ffmpeg yok!")
@@ -877,7 +955,7 @@ class MainApp(QWidget):
         main_layout.addWidget(self.app_container)
         self.switch_page(0)
 
-    # ── DİL ───────────────────────────────────
+    # ── LANG  ───────────────────────────────────
     def toggle_language(self):
         self.lang = "EN" if self.lang == "TR" else "TR"
         self.config["language"] = self.lang; save_config(self.config)
@@ -963,7 +1041,6 @@ class MainApp(QWidget):
             self.s_url.setText(text)
             self.fetch_video_info()
 
-    # ── PENCERE SÜRÜKLEME ─────────────────────
     def mousePressEvent(self, e):
         if e.button() == Qt.LeftButton:
             self.dragPos = e.globalPos() - self.frameGeometry().topLeft()
@@ -973,7 +1050,6 @@ class MainApp(QWidget):
             self.move(e.globalPos() - self.dragPos)
 
     # ══════════════════════════════════════════
-    #  SAYFA 1: TEKLİ İNDİRİCİ
     # ══════════════════════════════════════════
     def setup_single_page(self):
         page = QWidget()
@@ -1116,7 +1192,6 @@ class MainApp(QWidget):
     def start_single_download(self):
         url = self.s_url.text().strip(); t = LANG[self.lang]
         if not url: return QMessageBox.warning(self, t["msg_warning"], t["msg_enter_link"])
-        # ffmpeg kontrolü — indirmeden önce uyar
         if not FFMPEG_PATH:
             return QMessageBox.critical(self, t["msg_error"], t["msg_ffmpeg_missing"])
         fmt = 'MP3' if 'MP3' in self.s_format.currentText() else 'MP4'
@@ -1144,12 +1219,11 @@ class MainApp(QWidget):
         add_history(title, url, size_mb, fmt, qual, self.config["save_path"])
         self.s_btn.setEnabled(True); self.s_prog.setValue(100)
         self.s_status.setText(t["msg_done"])
-        self.tray.showMessage(t["notify_done_title"], title or t["notify_done_msg"],
-                              QSystemTrayIcon.Information, 4000)
+        self._tray_notify(t["notify_done_title"], title or t["notify_done_msg"])
         QMessageBox.information(self, t["msg_success"], t["msg_single_done"])
 
     # ══════════════════════════════════════════
-    #  SAYFA 2: TOPLU İNDİRİCİ
+
     # ══════════════════════════════════════════
     def setup_batch_page(self):
         page = QWidget()
@@ -1264,7 +1338,6 @@ class MainApp(QWidget):
 
     def start_batch_download(self):
         t = LANG[self.lang]
-        # ffmpeg kontrolü
         if not FFMPEG_PATH:
             return QMessageBox.critical(self, t["msg_error"], t["msg_ffmpeg_missing"])
         tasks = list(self.batch_tasks)
@@ -1302,11 +1375,11 @@ class MainApp(QWidget):
         t = LANG[self.lang]
         self.b_btn.setEnabled(True); self.b_prog.setValue(100)
         self.b_status.setText(t["msg_done"])
-        self.tray.showMessage(t["notify_done_title"], t["msg_batch_done"], QSystemTrayIcon.Information, 4000)
+        self._tray_notify(t["notify_done_title"], t["msg_batch_done"])
         QMessageBox.information(self, t["msg_success"], t["msg_batch_done"])
 
     # ══════════════════════════════════════════
-    #  SAYFA 3: GEÇMİŞ
+
     # ══════════════════════════════════════════
     def setup_history_page(self):
         page = QWidget(); layout = QVBoxLayout(page); layout.setContentsMargins(0,0,0,0); layout.setSpacing(12)
@@ -1347,20 +1420,11 @@ class MainApp(QWidget):
             btn_del = QPushButton(t["btn_delete_hist"]); btn_del.setProperty("class", "secondaryBtn")
             btn_del.setFixedSize(32, 28)
             _path = save_path
-            btn_open.clicked.connect(lambda _, p=_path: self.open_folder(p))
+            btn_open.clicked.connect(lambda _, p=_path: open_folder_platform(p))
             _rid = rid
             btn_del.clicked.connect(lambda _, i=_rid: self.delete_hist_row(i))
             act_lay.addWidget(btn_open); act_lay.addWidget(btn_del)
             self.hist_table.setCellWidget(r, 3, act_w)
-
-    def open_folder(self, path):
-        if os.path.exists(path):
-            if sys.platform == "win32":
-                os.startfile(path)
-            elif sys.platform == "darwin":
-                subprocess.run(["open", path])
-            else:
-                subprocess.run(["xdg-open", path])
 
     def delete_hist_row(self, rid):
         delete_history(rid); self.refresh_history()
@@ -1373,7 +1437,7 @@ class MainApp(QWidget):
             clear_history(); self.refresh_history()
 
     # ══════════════════════════════════════════
-    #  SAYFA 4: AYARLAR
+    #  SETTGİNS PAGE
     # ══════════════════════════════════════════
     def setup_settings_page(self):
         page = QWidget()
@@ -1419,16 +1483,23 @@ class MainApp(QWidget):
         self.spin_concurrent.setValue(self.config.get("concurrent_downloads", 2))
         c3.addWidget(self.lbl_concurrent_setting); c3.addWidget(self.spin_concurrent)
 
-        # ffmpeg yolu bilgi kartı
         card4 = QFrame(); card4.setProperty("class", "card")
         c4 = QVBoxLayout(card4); c4.setContentsMargins(20, 18, 20, 18); c4.setSpacing(6)
         lbl_ffmpeg_hdr = QLabel("ffmpeg")
         lbl_ffmpeg_hdr.setStyleSheet("font-size:13px;font-weight:700;color:#9D9DBE;")
-        lbl_ffmpeg_val = QLabel(FFMPEG_PATH if FFMPEG_PATH else "❌ Bulunamadı — https://www.gyan.dev/ffmpeg/builds/")
+        if FFMPEG_PATH:
+            ffmpeg_display = FFMPEG_PATH
+            ffmpeg_style = "font-size:12px;color:#4ADE80;"
+        else:
+            platform_hint = {
+                "darwin": "brew install ffmpeg",
+                "win32":  "https://www.gyan.dev/ffmpeg/builds/",
+            }.get(sys.platform, "sudo apt install ffmpeg  /  dnf install ffmpeg")
+            ffmpeg_display = f"❌ Bulunamadı\n→ {platform_hint}"
+            ffmpeg_style = "font-size:12px;color:#FF4D6D;"
+        lbl_ffmpeg_val = QLabel(ffmpeg_display)
         lbl_ffmpeg_val.setWordWrap(True)
-        lbl_ffmpeg_val.setStyleSheet(
-            "font-size:12px;color:#4ADE80;" if FFMPEG_PATH else "font-size:12px;color:#FF4D6D;"
-        )
+        lbl_ffmpeg_val.setStyleSheet(ffmpeg_style)
         c4.addWidget(lbl_ffmpeg_hdr); c4.addWidget(lbl_ffmpeg_val)
 
         self.btn_save_set = QPushButton(); self.btn_save_set.setProperty("class", "primaryBtn")
@@ -1455,7 +1526,7 @@ class MainApp(QWidget):
             self.lang = new_lang; self.update_texts()
         QMessageBox.information(self, t["msg_success"], t["msg_settings_saved"])
 
-    # ── ORTAK ─────────────────────────────────
+    # ───────────────────────────────────
     def download_error(self, err, btn, status_lbl):
         t = LANG[self.lang]
         if status_lbl: status_lbl.setText(t["msg_error"])
