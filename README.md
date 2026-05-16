@@ -102,7 +102,37 @@ python yt_downloader.py
 
 **ffmpeg is required** for merging audio/video streams, converting to MP3, embedding thumbnails, trimming, and subtitle handling. Without it the downloader will show an error and refuse to start downloads.
 
-### Step-by-step (Windows)
+---
+
+### 🍎 macOS
+
+The easiest way is to install ffmpeg via **Homebrew**. If you don't have Homebrew yet, install it first:
+
+```bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+```
+
+Then install ffmpeg:
+
+```bash
+brew install ffmpeg
+```
+
+That's it. The app will find ffmpeg automatically — no extra steps needed.
+
+> **Apple Silicon (M1/M2/M3):** Homebrew installs to `/opt/homebrew/bin/ffmpeg`.
+> **Intel Mac:** Homebrew installs to `/usr/local/bin/ffmpeg`.
+> Both paths are detected automatically.
+
+To verify the installation worked:
+
+```bash
+ffmpeg -version
+```
+
+---
+
+### 🪟 Windows
 
 1. Go to **[https://www.gyan.dev/ffmpeg/builds/](https://www.gyan.dev/ffmpeg/builds/)**
 2. Under *Release builds*, download **`ffmpeg-release-essentials.zip`**
@@ -120,34 +150,43 @@ yt-dl/
 └── history.db          (auto-created on first run)
 ```
 
-### Where the app looks for ffmpeg
+---
 
-The app searches these locations in order and uses the first one it finds:
+### 🐧 Linux
 
-1. Inside the PyInstaller `_MEIPASS` bundle (if running as a compiled `.exe`)
-2. `ffmpeg/ffmpeg.exe` sub-folder next to the script
-3. `ffmpeg/bin/ffmpeg.exe` sub-folder (official zip layout)
-4. Directly next to the script/exe
-5. System `PATH` (via `shutil.which`)
-
-If ffmpeg is not found, a red `✘ ffmpeg yok!` indicator appears in the sidebar and downloads are blocked with a clear error message.
-
-### macOS / Linux
-
-On macOS or Linux, install ffmpeg via your package manager:
+Install ffmpeg via your distribution's package manager:
 
 ```bash
-# macOS
-brew install ffmpeg
-
 # Ubuntu / Debian
 sudo apt install ffmpeg
+
+# Fedora
+sudo dnf install ffmpeg
 
 # Arch Linux
 sudo pacman -S ffmpeg
 ```
 
 The app will find it automatically via system `PATH`.
+
+---
+
+### Where the app looks for ffmpeg
+
+The app searches these locations in order and uses the first one it finds:
+
+| Priority | Location |
+|---|---|
+| 1 | Inside the PyInstaller `_MEIPASS` bundle (compiled `.exe` / `.app`) |
+| 2 | `ffmpeg/ffmpeg` (or `ffmpeg.exe`) sub-folder next to the script |
+| 3 | `ffmpeg/bin/ffmpeg` sub-folder (Windows official zip layout) |
+| 4 | `/opt/homebrew/bin/ffmpeg` (macOS Apple Silicon — Homebrew) |
+| 5 | `/usr/local/bin/ffmpeg` (macOS Intel — Homebrew) |
+| 6 | `/opt/local/bin/ffmpeg` (macOS — MacPorts) |
+| 7 | Directly next to the script/exe |
+| 8 | System `PATH` (via `shutil.which`) |
+
+If ffmpeg is not found, a red `✘ ffmpeg yok!` indicator appears in the sidebar and downloads are blocked with a clear error message. The Settings page will also show a platform-specific install hint.
 
 ---
 
